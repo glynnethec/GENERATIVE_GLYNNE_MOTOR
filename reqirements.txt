@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+
+# Langchain stack
+langchain<0.2
+langchain-groq
+langgraph
+
+# Utilities
+python-dotenv
+psutil

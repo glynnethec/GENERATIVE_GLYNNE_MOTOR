@@ -1,0 +1,71 @@
+# ======================
+# ARCHIVOS DEL SISTEMA
+# ======================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+
+# ======================
+# CONFIGURACIONES Y ENTORNOS
+# ======================
+.env
+.env.local
+.env.*.local
+*.env
+.b.env
+.b.env.example
+
+# ======================
+# ENTORNOS VIRTUALES
+# ======================
+venv/
+env/
+.venv/
+ENV/
+venv.bak/
+
+# ======================
+# COMPILADOS DE PYTHON
+# ======================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ======================
+# DISTRIBUCIÓN Y PAQUETES
+# ======================
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+.wheelhouse/
+
+# ======================
+# ARCHIVOS DE CACHE Y TEMPORALES
+# ======================
+.cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.dmypy.json
+cython_debug/
+
+# ======================
+# CONFIGURACIÓN DE EDITORES
+# ======================
+.vscode/
+.idea/
+*.swp
+
+# ======================
+# OTROS
+# ======================
+node_modules/
+test_output/
+tmp/
