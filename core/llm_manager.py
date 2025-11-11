@@ -1,3 +1,4 @@
+# core/llm_manager.py
 from core.config import Config
 from langchain_groq import ChatGroq
 
@@ -12,21 +13,11 @@ class LLMManager:
         self.llm = self._initialize_model()
 
     def _initialize_model(self):
-        # Inicializa el LLM pasando modelo y temperatura explícitamente
-        return ChatGroq(
-            api_key=self.config.api_key,
-            model=self.model_name,
-            temperature=self.temperature
-        )
+        # Inicializa tu LLM real
+        return ChatGroq(api_key=self.config.api_key)
 
     def invoke(self, prompt: str):
         """
-        Llamada síncrona (para GraphManager)
+        Método público para llamar al LLM, usado por GraphManager
         """
         return self.llm.invoke(prompt)
-
-    async def ainvoke(self, prompt: str):
-        """
-        Llamada asíncrona (para LangGraph async)
-        """
-        return await self.llm.ainvoke(prompt)
