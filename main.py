@@ -86,6 +86,7 @@ class GlynneServer:
             "https://www.glynneai.com",
             "https://glynne-sst-ai-hsiy.vercel.app",
             "http://localhost:3000",
+            'https://glynne-fornt1.vercel.app'
         ]
 
         self.app.add_middleware(
