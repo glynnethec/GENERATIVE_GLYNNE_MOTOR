@@ -233,7 +233,7 @@ def mount_full_agent_endpoint(app: FastAPI):
 
             prompt = f"""
 [META]
-Actúa como un {rol} y responde con máximo 100 palabras.
+Actúa como un {rol}  no salgas de tu personage 
 
 [AGENTE]
 Nombre: {cfg.get("agent_name")}
