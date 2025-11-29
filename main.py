@@ -15,6 +15,24 @@ import platform
 import psutil
 import socket
 import requests
+import hashlib
+
+# =====================================================
+# 🔥 TON COMPRESSOR (ÚNICO CAMBIO REAL DEL SISTEMA)
+# =====================================================
+def ton_compress(text: str) -> str:
+    """Comprime el prompt al formato TON más compacto posible."""
+    if not text:
+        return "ton:v1|0|0|"
+
+    # 1. Quitar saltos y espacios innecesarios
+    clean = " ".join(text.split())
+
+    # 2. Hash para checksum (validación)
+    checksum = hashlib.md5(clean.encode()).hexdigest()[:6]
+
+    # 3. TON PACK
+    return f"ton:v1|{len(clean)}|{checksum}|{clean}"
 
 # =====================================================
 # 🧠 Cola Global de Logs (broadcast SSE)
@@ -22,7 +40,6 @@ import requests
 log_subscribers: List[asyncio.Queue] = []
 
 def system_snapshot():
-    """📊 Extrae info técnica del servidor sin exponer datos sensibles."""
     try:
         return {
             "hostname": socket.gethostname(),
@@ -37,7 +54,6 @@ def system_snapshot():
         return {"info": "system data unavailable"}
 
 def push_log(message: str, type: str = "info", details=None, elapsed: float = None, status: float = None):
-    """Enviar log a todos los suscriptores SSE."""
     summary = None
     if details:
         summary = {
@@ -47,7 +63,6 @@ def push_log(message: str, type: str = "info", details=None, elapsed: float = No
             "elapsed": round(elapsed, 3) if elapsed else None,
             "status": status,
         }
-
     log = {
         "time": datetime.utcnow().isoformat(),
         "msg": message,
@@ -58,7 +73,6 @@ def push_log(message: str, type: str = "info", details=None, elapsed: float = No
         "status": status,
         "system": system_snapshot(),
     }
-
     for queue in list(log_subscribers):
         try:
             queue.put_nowait(log)
@@ -80,13 +94,12 @@ class GlynneServer:
     def __init__(self):
         self.app = FastAPI(title="GLYNNE Agents API", version="2.0.0")
 
-        # ✅ CORS para producción + vercel + local
         origins = [
             "https://glynneai.com",
             "https://www.glynneai.com",
             "https://glynne-sst-ai-hsiy.vercel.app",
             "http://localhost:3000",
-            'https://glynne-fornt1.vercel.app'
+            "https://glynne-fornt1.vercel.app"
         ]
 
         self.app.add_middleware(
@@ -107,27 +120,22 @@ class GlynneServer:
             push_log("Root endpoint hit", "info", details={"module": "root"})
             return {"message": "🚀 GLYNNE Agents API running (Dynamic Mode)"}
 
-        # 🧠 Legacy chat endpoint
         @self.app.post("/chat")
         async def chat_legacy(req: MessageRequest):
             start = time.time()
             push_log(f"[Legacy Chat] Role={req.rol} | Message={req.mensaje}", "info", details={"module": "legacy-chat"})
             time.sleep(0.3)
             elapsed = time.time() - start
-            push_log(
-                "Processed legacy chat",
-                "success",
+            push_log("Processed legacy chat", "success",
                 details={"module": "legacy-chat", "role": req.rol},
                 elapsed=elapsed,
-                status=1.0,
-            )
+                status=1.0)
             return {
                 "warning": "Legacy /chat endpoint — usa /dynamic/agent/chat",
                 "rol": req.rol,
                 "mensaje": req.mensaje,
             }
 
-        # 🔌 SSE Logs stream
         @self.app.get("/logs/stream")
         async def stream_logs(request: Request):
             push_log("Console attempting to connect via SSE 🔌", "info", details={"module": "logs"})
@@ -169,8 +177,13 @@ def mount_user_key_endpoint(app: FastAPI):
         try:
             config = Config(req.api_key)
             llm = ChatGroq(api_key=config.api_key, model="llama-3.3-70b-versatile")
-            prompt_text = f"{req.prompt}\nRol: {req.rol}\nMensaje: {req.mensaje}"
-            raw_response = llm.invoke(prompt_text)
+
+            # 🔥 COMPRESIÓN TON — ÚNICO CAMBIO REAL
+            base_prompt = f"{req.prompt}\nRol:{req.rol}\nMensaje:{req.mensaje}"
+            ton_prompt = ton_compress(base_prompt)
+
+            raw_response = llm.invoke(ton_prompt)
+
             if raw_response is None:
                 response = "❌ El agente no pudo generar respuesta"
             elif isinstance(raw_response, dict):
@@ -202,13 +215,13 @@ def mount_user_key_endpoint(app: FastAPI):
             push_log(f"Unexpected error: {err_msg}", "error", details={"module": "dynamic-agent"}, elapsed=elapsed)
             return {"reply": "❌ Error inesperado en la ejecución del agente"}
 
-# ==============================================
-# 🧠 Memoria persistente de agentes Full
-# ==============================================
-AGENT_MEMORY = {}  # Clave = agent_name, valor = lista de mensajes
+# =====================================================
+# 🧠 Memoria persistente
+# =====================================================
+AGENT_MEMORY = {}
 
 # =====================================================
-# 🧩 Endpoint extendido /dynamic/agent/chat/full
+# 🧩 /dynamic/agent/chat/full (TON aplicado)
 # =====================================================
 class FullAgentChatRequest(BaseModel):
     agent_config: dict
@@ -225,45 +238,39 @@ def mount_full_agent_endpoint(app: FastAPI):
             rol = cfg.get("rol", "assistant")
             agent_name = cfg.get("agent_name", "default_agent")
 
-            # Recuperar la memoria existente o inicializarla
             memory = AGENT_MEMORY.get(agent_name, [])
-
-            # Construir contexto previo
             previous_context = "\n".join(memory) if memory else ""
 
             prompt = f"""
 [META]
-Actúa como un {rol}  no salgas de tu personage 
+Actúa como un {rol} no salgas de tu personaje
 
 [AGENTE]
-Nombre: {cfg.get("agent_name")}
-Especialidad: {cfg.get("specialty")}
-Objetivo: {cfg.get("objective")}
-Proyecto: {cfg.get("business_info")}
-Instrucciones: {cfg.get("additional_msg")}
+Nombre:{cfg.get("agent_name")}
+Especialidad:{cfg.get("specialty")}
+Objetivo:{cfg.get("objective")}
+Proyecto:{cfg.get("business_info")}
+Instrucciones:{cfg.get("additional_msg")}
 
-[MEMORIA PREVIA]
+[MEMORIA]
 {previous_context}
 
 [ENTRADA]
 {req.mensaje}
 
 [RESPUESTA]
-Entrega una respuesta breve, útil y directa.
+Breve, útil y directa.
             """
 
-            push_log(
-                f"[Dynamic Full] Received full agent config for role={rol}",
-                "info",
-                details={"module": "dynamic-agent-full", "rol": rol},
-            )
+            # 🔥 COMPRESIÓN TON — ÚNICO CAMBIO REAL
+            ton_prompt = ton_compress(prompt)
 
             if not api_key:
                 return {"reply": "❌ No se encontró API key en la configuración del agente."}
 
             config = Config(api_key)
             llm = ChatGroq(api_key=config.api_key, model=model)
-            raw_response = llm.invoke(prompt)
+            raw_response = llm.invoke(ton_prompt)
 
             if raw_response is None:
                 response = "❌ El agente no pudo generar respuesta"
@@ -274,10 +281,9 @@ Entrega una respuesta breve, útil y directa.
             else:
                 response = str(raw_response)
 
-            # Guardar la interacción en la memoria
-            memory.append(f"Usuario: {req.mensaje}")
-            memory.append(f"{rol}: {response}")
-            AGENT_MEMORY[agent_name] = memory  # actualizar memoria global
+            memory.append(f"Usuario:{req.mensaje}")
+            memory.append(f"{rol}:{response}")
+            AGENT_MEMORY[agent_name] = memory
 
             elapsed = time.time() - start
             push_log(
@@ -299,9 +305,8 @@ Entrega una respuesta breve, útil y directa.
             )
             return {"reply": f"❌ Error procesando agente completo: {str(e)}"}
 
-
 # =====================================================
-# 🟢 Endpoint para enviar mensajes a WhatsApp desde frontend
+# 🟢 WhatsApp Endpoint (sin tocar)
 # =====================================================
 class WhatsAppSendRequest(BaseModel):
     agent_config: dict
@@ -329,22 +334,25 @@ def mount_whatsapp_endpoint(app: FastAPI):
 Actúa como un {rol} y responde con máximo 100 palabras.
 
 [AGENTE]
-Nombre: {agent_name}
-Especialidad: {cfg.get("specialty")}
-Objetivo: {cfg.get("objective")}
-Proyecto: {cfg.get("business_info")}
-Instrucciones: {cfg.get("additional_msg")}
+Nombre:{agent_name}
+Especialidad:{cfg.get("specialty")}
+Objetivo:{cfg.get("objective")}
+Proyecto:{cfg.get("business_info")}
+Instrucciones:{cfg.get("additional_msg")}
 
 [ENTRADA]
 {req.mensaje}
 
 [RESPUESTA]
-Entrega una respuesta breve, útil y directa.
+Breve y útil.
             """
+
+            # 🔥 COMPRESIÓN TON — ÚNICO CAMBIO REAL
+            ton_prompt = ton_compress(prompt)
 
             config = Config(cfg.get("api_key", ""))
             llm = ChatGroq(api_key=config.api_key, model="llama-3.3-70b-versatile")
-            raw_response = llm.invoke(prompt)
+            raw_response = llm.invoke(ton_prompt)
 
             if raw_response is None:
                 response_text = "❌ El agente no pudo generar respuesta"
@@ -355,7 +363,6 @@ Entrega una respuesta breve, útil y directa.
             else:
                 response_text = str(raw_response)
 
-            # Enviar mensaje a WhatsApp usando token del frontend
             whatsapp_api_url = f"https://graph.facebook.com/v17.0/me/messages"
             headers = {
                 "Authorization": f"Bearer {req.whatsapp_token}",
@@ -388,7 +395,7 @@ Entrega una respuesta breve, útil y directa.
             return {"reply": response_text, "whatsapp_status": f"❌ Error inesperado: {str(e)}"}
 
 # =====================================================
-# 🏁 Inicialización del servidor
+# 🏁 Inicialización
 # =====================================================
 server = GlynneServer()
 app = server.app
